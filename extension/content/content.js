@@ -305,7 +305,7 @@
 
   // ---------- 开关与设置 ----------
 
-  const isActive = () => settings.enabled && !igSiteDisabled(settings, location.hostname);
+  const isActive = () => igSiteActive(settings, location.hostname);
 
   function detectDark() {
     const bg = [document.body, document.documentElement]
@@ -521,6 +521,7 @@
   let toast;
   let anchorRect = null;
   let placement = 'below';
+  let dragged = false; // 卡片被拖动过：固定在原地，不再跟随锚点
   let current = null;
 
   const CARD_CSS = `
@@ -533,7 +534,7 @@
       box-shadow: 0 8px 24px rgba(0,0,0,.18);
     }
     [hidden] { display: none !important; }
-    .head { display: flex; align-items: baseline; gap: 8px; }
+    .head { display: flex; align-items: baseline; gap: 8px; cursor: move; user-select: none; }
     .word { font-size: 18px; font-weight: 600; word-break: break-word; }
     .lv { font-size: 12px; padding: 0 6px; border-radius: 4px; background: #e6f4f1; color: #0f7b6c; white-space: nowrap; }
     .x { margin-left: auto; border: 0; background: none; font-size: 18px; line-height: 1; cursor: pointer; color: #8c959f; padding: 0 2px; }
@@ -591,6 +592,7 @@
     document.documentElement.appendChild(host);
 
     card.addEventListener('click', onCardClick);
+    card.addEventListener('pointerdown', onDragStart);
     dot.addEventListener('mousedown', (e) => e.preventDefault()); // 保持选区
     dot.addEventListener('click', onDotClick);
     toast.addEventListener('click', () => (toast.hidden = true));
@@ -619,6 +621,7 @@
 
   // where: 'below' 在锚点下方；'right' 在锚点右侧，右边放不下时改到下方
   function showCard(html, rectFn, where = placement) {
+    if (rectFn !== anchorRect) dragged = false; // 新卡片回到默认位置；同一张卡片重绘时保留拖动后的位置
     card.innerHTML = html;
     card.hidden = false;
     anchorRect = rectFn;
@@ -631,8 +634,31 @@
     current = null;
   }
 
+  // 按住卡片标题栏拖动
+  function onDragStart(e) {
+    if (e.button !== 0 || !e.target.closest('.head') || e.target.closest('button')) return;
+    e.preventDefault();
+    const box = card.getBoundingClientRect();
+    const dx = e.clientX - box.left;
+    const dy = e.clientY - box.top;
+    card.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      dragged = true;
+      card.style.left = `${Math.min(Math.max(0, ev.clientX - dx), innerWidth - box.width)}px`;
+      card.style.top = `${Math.min(Math.max(0, ev.clientY - dy), innerHeight - box.height)}px`;
+    };
+    const up = () => {
+      card.removeEventListener('pointermove', move);
+      card.removeEventListener('pointerup', up);
+      card.removeEventListener('pointercancel', up);
+    };
+    card.addEventListener('pointermove', move);
+    card.addEventListener('pointerup', up);
+    card.addEventListener('pointercancel', up);
+  }
+
   function positionCard() {
-    if (!card || card.hidden || !anchorRect) return;
+    if (!card || card.hidden || !anchorRect || dragged) return;
     const r = anchorRect();
     const w = card.offsetWidth;
     const h = card.offsetHeight;

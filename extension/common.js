@@ -14,7 +14,9 @@ const IG_DEFAULTS = {
   aiModel: 'deepseek-chat',
   deeplxUrl: 'https://api.deeplx.org/translate',
   deeplxToken: '',
-  disabledSites: [],
+  // enabled 是所有网站的默认状态；下面两个列表是例外，优先于默认
+  disabledSites: [], // 默认启用时，单独关闭的网站
+  enabledSites: [], // 默认关闭时，单独开启的网站
 };
 
 const IG_LEVELS = {
@@ -65,6 +67,18 @@ async function igSetVocab(word, entry) {
   }
 }
 
-function igSiteDisabled(settings, hostname) {
-  return settings.disabledSites.includes(hostname);
+// 某个网站是否启用：先看例外列表，再看默认
+function igSiteActive(settings, hostname) {
+  return settings.enabled ? !settings.disabledSites.includes(hostname) : settings.enabledSites.includes(hostname);
+}
+
+// 在 hostname 上打开/关闭，返回要保存的设置改动。以最近一次选择为准：
+// 先从两个列表里都去掉，和默认不同时再记到对应的列表
+function igSiteToggle(settings, hostname, on) {
+  const disabled = new Set(settings.disabledSites);
+  const enabled = new Set(settings.enabledSites);
+  disabled.delete(hostname);
+  enabled.delete(hostname);
+  if (on !== settings.enabled) (on ? enabled : disabled).add(hostname);
+  return { disabledSites: [...disabled], enabledSites: [...enabled] };
 }

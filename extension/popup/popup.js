@@ -13,8 +13,10 @@ async function main() {
   $('stats').textContent = `生词本 ${Object.keys(vocab).length} · 已认识 ${known.length}`;
 
   function render() {
-    $('site').checked = !igSiteDisabled(s, hostname);
+    const active = igSiteActive(s, hostname);
+    $('site').checked = active;
     $('site').disabled = !hostname;
+    $('siteHint').textContent = s.enabled && !active ? '（本站单独关闭）' : !s.enabled && active ? '（本站单独开启）' : '';
     $('enabled').checked = s.enabled;
     $('level').value = String(s.level);
     $('showRare').checked = s.showRare;
@@ -30,12 +32,7 @@ async function main() {
     render();
   };
 
-  $('site').onchange = (e) => {
-    const sites = new Set(s.disabledSites);
-    if (e.target.checked) sites.delete(hostname);
-    else sites.add(hostname);
-    save({ disabledSites: [...sites] });
-  };
+  $('site').onchange = (e) => save(igSiteToggle(s, hostname, e.target.checked));
   $('enabled').onchange = (e) => save({ enabled: e.target.checked });
   $('level').onchange = (e) => save({ level: Number(e.target.value) });
   $('showRare').onchange = (e) => save({ showRare: e.target.checked });

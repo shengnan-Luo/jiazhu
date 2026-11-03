@@ -53,6 +53,11 @@ h2 {
   margin: 0 0 8px;
   font-size: 16px;
 }
+h3 {
+  margin: 14px 0 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
 header p {
   margin: 0;
 }

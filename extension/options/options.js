@@ -137,12 +137,18 @@ async function importKnown() {
   $('knownImport').value = '';
 }
 
-// ---------- 停用网站 ----------
+// ---------- 网站 ----------
+
+// 只显示和当前默认状态相关的例外列表
+const sitesKey = () => (s.enabled ? 'disabledSites' : 'enabledSites');
 
 function renderSites() {
-  $('sitesEmpty').hidden = s.disabledSites.length > 0;
-  $('sites').innerHTML = s.disabledSites
-    .map((h) => `<span class="chip" data-site="${escapeHTML(h)}" title="点击重新启用">${escapeHTML(h)}</span>`)
+  const list = s[sitesKey()];
+  $('enabled').checked = s.enabled;
+  $('sitesTitle').textContent = s.enabled ? '单独关闭的网站' : '单独开启的网站';
+  $('sitesEmpty').hidden = list.length > 0;
+  $('sites').innerHTML = list
+    .map((h) => `<span class="chip" data-site="${escapeHTML(h)}" title="点击移除，恢复默认">${escapeHTML(h)}</span>`)
     .join('');
 }
 
@@ -193,9 +199,10 @@ async function main() {
     if (w) igSetKnown(w, false);
   };
   $('knownImportBtn').onclick = importKnown;
+  $('enabled').onchange = (e) => save({ enabled: e.target.checked }).then(renderSites);
   $('sites').onclick = (e) => {
     const h = e.target.dataset.site;
-    if (h) save({ disabledSites: s.disabledSites.filter((x) => x !== h) });
+    if (h) save({ [sitesKey()]: s[sitesKey()].filter((x) => x !== h) });
   };
   $('backup').onclick = backup;
   $('restore').onchange = (e) => e.target.files[0] && restore(e.target.files[0]);

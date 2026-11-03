@@ -21,7 +21,7 @@
   </label>
 
   <div class="row col">
-    <span>标注哪些词</span>
+    <span>英文网页标注哪些词</span>
     <select id="level">
       <option value="2">四级及以上</option>
       <option value="3">六级及以上</option>
@@ -39,6 +39,18 @@
     <input type="checkbox" id="firstOnly" class="switch">
   </label>
   <label class="row">
+    <span>中文网页标注英文单词</span>
+    <input type="checkbox" id="zh" class="switch">
+  </label>
+  <div class="row" id="zhRow">
+    <span>复习词表</span>
+    <span class="lists" id="zhLists">
+      <label><input type="checkbox" value="1">四级</label>
+      <label><input type="checkbox" value="2">六级</label>
+      <label><input type="checkbox" value="3">雅思托福</label>
+    </span>
+  </div>
+  <label class="row">
     <span>AI 语境释义 <small id="aiHint"></small></span>
     <input type="checkbox" id="ai" class="switch">
   </label>
@@ -49,7 +61,7 @@
     <span><i class="c-ai"></i>AI 语境释义/短语</span>
     <span><i class="c-vocab"></i>生词本</span>
   </div>
-  <p class="tip">选中任意单词或短语，点右上角的小圆点查释义</p>
+  <p class="tip">选中单词、短语或中文，点右上角的小圆点查释义/翻译</p>
 
   <button id="toggle" class="wide">显示/隐藏本页释义 <kbd id="shortcut">Alt+W</kbd></button>
 

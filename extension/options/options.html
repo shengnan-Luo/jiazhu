@@ -12,7 +12,7 @@
       <img src="../icons/48.png" alt="" width="32" height="32">
       <div>
         <h1>夹注</h1>
-        <p class="muted">在英文网页的生词后面直接显示中文释义</p>
+        <p class="muted">英文网页：生词后面显示中文释义；中文网页：词语后面显示英文单词</p>
       </div>
       <span id="saved" class="saved" hidden>已保存</span>
     </header>
@@ -20,7 +20,7 @@
     <section>
       <h2>标注</h2>
       <div class="field">
-        <label for="level">标注哪些词</label>
+        <label for="level">英文网页标注哪些词</label>
         <select id="level">
           <option value="2">四级及以上</option>
           <option value="3">六级及以上</option>
@@ -41,6 +41,18 @@
       </div>
       <p class="preview">These results <span class="ig-demo ai" data-g="证实">corroborate</span> our <span class="ig-demo" data-g="假设">hypothesis</span> and give rise to<span class="ig-demo-p" data-g="导致"></span> a new model of the <span class="ig-demo vocab" data-g="衬底">substrate</span>.</p>
       <p class="hint">青色：词典释义　紫色：AI 按上下文改过的释义和短语　橙色：生词本里的词</p>
+
+      <h3>中文网页</h3>
+      <label class="check"><input type="checkbox" id="zh"> 在中文网页的部分词语后面标注对应的英文单词，读中文时顺便复习</label>
+      <div class="field inline" id="zhLists">
+        <label>复习词表</label>
+        <label class="check"><input type="checkbox" value="1"> 四级</label>
+        <label class="check"><input type="checkbox" value="2"> 六级</label>
+        <label class="check"><input type="checkbox" value="3"> 雅思托福</label>
+      </div>
+      <p class="hint">三个词表互不重复：六级只含四级以外的词，雅思托福只含四六级以外的词，可以多选。中考词汇太基础，不标。</p>
+      <p class="preview">本研究<span class="ig-demo zh" data-g="enhance">提高</span>了预测的准确性，并<span class="ig-demo zh ai" data-g="validate">验证</span>了这一<span class="ig-demo zh" data-g="hypothesis">假设</span>。</p>
+      <p class="hint">离线词典是从英汉词典反查的，偶尔会配出不太贴切的词。开启 AI 语境释义后，AI 会按上下文检查、替换，并补充一些词（紫色）。选中一段中文点小圆点，可以译成英文。</p>
     </section>
 
     <section>

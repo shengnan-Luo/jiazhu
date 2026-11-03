@@ -21,6 +21,9 @@ async function main() {
     $('level').value = String(s.level);
     $('showRare').checked = s.showRare;
     $('firstOnly').checked = s.firstOnly;
+    $('zh').checked = s.zh;
+    $('zhRow').hidden = !s.zh;
+    for (const box of $('zhLists').querySelectorAll('input')) box.checked = s.zhLists.includes(Number(box.value));
     $('ai').checked = s.ai && !!s.aiKey;
     $('ai').disabled = !s.aiKey;
     $('aiHint').textContent = s.aiKey ? '' : '（先在设置里填 API）';
@@ -37,6 +40,11 @@ async function main() {
   $('level').onchange = (e) => save({ level: Number(e.target.value) });
   $('showRare').onchange = (e) => save({ showRare: e.target.checked });
   $('firstOnly').onchange = (e) => save({ firstOnly: e.target.checked });
+  $('zh').onchange = (e) => save({ zh: e.target.checked });
+  $('zhLists').onchange = () => {
+    const boxes = [...$('zhLists').querySelectorAll('input:checked')];
+    save({ zhLists: boxes.map((b) => Number(b.value)) });
+  };
   $('ai').onchange = (e) => save({ ai: e.target.checked });
 
   $('toggle').onclick = () => {

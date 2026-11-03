@@ -214,6 +214,9 @@ kbd {
   color: #c2410c;
   font-weight: 600;
 }
+.ig-demo.zh::after {
+  margin: 0 0.25em 0 0.15em;
+}
 @media (prefers-color-scheme: dark) {
   .ig-demo.ai::after,
   .ig-demo-p::after {

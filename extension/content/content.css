@@ -31,6 +31,11 @@
   content: attr(data-g);
 }
 
+/* 中文词后面的英文：右边也留点空，免得和下一个汉字挤在一起 */
+.ig-w.ig-zh::after {
+  margin: 0 0.25em 0 0.15em;
+}
+
 html[data-ig-dark] .ig-w::after {
   color: var(--ig-color-dark, #5eead4);
 }

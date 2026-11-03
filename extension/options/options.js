@@ -29,6 +29,8 @@ function bindSettings() {
   $('level').value = String(s.level);
   $('showRare').checked = s.showRare;
   $('firstOnly').checked = s.firstOnly;
+  $('zh').checked = s.zh;
+  for (const box of $('zhLists').querySelectorAll('input')) box.checked = s.zhLists.includes(Number(box.value));
   $('color').value = s.color;
   $('colorDark').value = s.colorDark;
   $('size').value = s.size;
@@ -41,7 +43,11 @@ function bindSettings() {
   renderPreview();
 
   $('level').onchange = (e) => save({ level: Number(e.target.value) });
-  for (const id of ['showRare', 'firstOnly', 'ai']) $(id).onchange = (e) => save({ [id]: e.target.checked });
+  for (const id of ['showRare', 'firstOnly', 'zh', 'ai']) $(id).onchange = (e) => save({ [id]: e.target.checked });
+  $('zhLists').onchange = () => {
+    const boxes = [...$('zhLists').querySelectorAll('input:checked')];
+    save({ zhLists: boxes.map((b) => Number(b.value)) });
+  };
   for (const id of ['color', 'colorDark']) $(id).onchange = (e) => save({ [id]: e.target.value });
   $('size').oninput = (e) => save({ size: Number(e.target.value) });
   for (const id of ['aiBase', 'aiKey', 'aiModel', 'deeplxUrl', 'deeplxToken']) {

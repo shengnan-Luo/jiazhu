@@ -5,6 +5,8 @@ const IG_DEFAULTS = {
   level: 3, // 标注 level >= 这个值的词
   showRare: true, // 标注词典里的专业/罕见词 (level 6)
   firstOnly: true, // 同一段里只在第一次出现时显示释义
+  zh: true, // 中文网页：在中文词后面标注对应的英文单词
+  zhLists: [2], // 复习哪些词表，见 IG_ZH_LISTS
   color: '#0f7b6c',
   colorDark: '#5eead4',
   size: 72, // 释义字号，相对正文的百分比
@@ -27,6 +29,19 @@ const IG_LEVELS = {
   5: 'GRE/低频',
   6: '专业/罕见',
 };
+
+// 中文网页复习用的词表，互不重复：六级只含四级以外的词，雅思托福只含四六级以外的词
+const IG_ZH_LISTS = {
+  1: '四级',
+  2: '六级',
+  3: '雅思托福',
+};
+
+// 以中文为主的文本（划选翻译时译成英文）
+function igMostlyChinese(text) {
+  const han = (text.match(/[一-鿿]/g) || []).length;
+  return han > 0 && han >= (text.match(/[A-Za-z]+/g) || []).length;
+}
 
 async function igGetSettings() {
   const { settings } = await chrome.storage.local.get('settings');

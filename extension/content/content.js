@@ -18,6 +18,11 @@
   const BLOCK_SELECTOR =
     'p,li,dd,dt,td,th,blockquote,figcaption,caption,h1,h2,h3,h4,h5,h6,summary,div,section,article,aside,main,body';
   const TOKEN_RE = /[A-Za-z]+(?:['’][A-Za-z]+)*/g;
+  const HAN_RE = /[一-鿿]/;
+  const HAN_WORD_RE = /^[一-鿿]+$/;
+  // 含假名的是日文，不按中文处理
+  const isZhText = (t) => /[一-鿿]{2}/.test(t) && !/[぀-ヿ]/.test(t);
+  const segmenter = window.Intl?.Segmenter ? new Intl.Segmenter('zh', { granularity: 'word' }) : null;
   // 参考文献列表不发给 AI，省钱
   const REF_SELECTOR =
     '#references,.references,.ref-list,.reference-list,.bibliography,[id^="bib"],[class*="bibliograph"],[id*="reference"],[class*="references"]';
@@ -28,6 +33,7 @@
   let started = false;
   let observer = null;
   const cache = new Map(); // 小写单词 -> 词典结果 | null
+  const zhCache = new Map(); // 中文词 -> [[英文, 词表], ...] | null
   let blockSeen = new WeakMap(); // 段落 -> 已显示过释义的原形
   let blockUnknown = new WeakMap(); // 段落 -> 词典里没有的词（交给 AI）
   let aiDone = new WeakSet();
@@ -99,7 +105,7 @@
     const { text, parts } = ownText(blockOf(el));
     const part = parts.find((p) => p.node === textNode);
     const pos = part ? part.start + offset : 0;
-    const re = /[.!?]["'”’)\]]*\s+(?=[A-Z"“(\[])/g;
+    const re = /[.!?]["'”’)\]]*\s+(?=[A-Z"“(\[])|[。！？；]["'”’）]*/g;
     let start = 0;
     let end = text.length;
     let m;
@@ -156,6 +162,11 @@
     span.dataset.l = info.lemma;
     span.dataset.g = info.gloss;
     span.dataset.lv = info.level ?? '';
+    if (info.zh) {
+      span.classList.add('ig-zh');
+      span.dataset.z = info.zh;
+      span.dataset.t = info.tier;
+    }
     if (vocab[info.lemma]) span.classList.add('ig-vocab');
     if (settings.firstOnly) {
       let seen = blockSeen.get(block);
@@ -172,6 +183,60 @@
     if (io && !aiDone.has(block)) io.observe(block);
   }
 
+  // 中文网页：在中文词后面标英文，复习词表里的单词
+  const zhOn =() => settings.zh && settings.zhLists.length > 0 && !!segmenter;
+
+  // 中文分词，只留汉字词，附带位置
+  function zhSegs(text) {
+    return [...segmenter.segment(text)].filter((s) => s.isWordLike && HAN_WORD_RE.test(s.segment));
+  }
+
+  // 从第 i 个词开始、由相邻的 1~3 个词拼成的候选词，长的在前（词典里的词可能被切开，比如 蛋白|质）
+  function runsAt(text, segs, i) {
+    const out = [];
+    const start = segs[i].index;
+    let end = start;
+    for (let k = i; k < i + 3 && k < segs.length && segs[k].index === end; k++) {
+      end += segs[k].segment.length;
+      if (end - start > 6) break;
+      out.unshift({ term: text.slice(start, end), next: k + 1 });
+    }
+    return out;
+  }
+
+  const zhTerms = (text) => {
+    const segs = zhSegs(text);
+    return segs.flatMap((_, i) => runsAt(text, segs, i).map((r) => r.term)).filter((t) => t.length >= 2);
+  };
+
+  // 选第一个在所选词表里、又没标记为认识的英文；生词本里的词不管在哪个词表都标
+  function pickZh(term) {
+    for (const [en, tier] of zhCache.get(term) || []) {
+      if (known.has(en)) continue;
+      if (vocab[en] || settings.zhLists.includes(tier)) return { lemma: en, gloss: en, level: '', tier, zh: term };
+    }
+    return null;
+  }
+
+  // 从左到右，每处取词典里最长的词
+  function zhHits(text) {
+    const segs = zhSegs(text);
+    const hits = [];
+    for (let i = 0; i < segs.length; ) {
+      let hit = null;
+      for (const r of runsAt(text, segs, i)) {
+        const info = pickZh(r.term);
+        if (info) {
+          hit = { start: segs[i].index, text: r.term, info, next: r.next };
+          break;
+        }
+      }
+      if (hit) hits.push(hit);
+      i = hit ? hit.next : i + 1;
+    }
+    return hits;
+  }
+
   function annotateNode(node) {
     const parent = node.parentElement;
     if (!parent) return;
@@ -180,8 +245,7 @@
     const prose = (text.match(/[A-Za-z]+/g) || []).length >= 5;
     const block = blockOf(parent);
     registerBlock(block);
-    let frag = null;
-    let last = 0;
+    const hits = [];
     for (const m of text.matchAll(TOKEN_RE)) {
       const raw = m[0];
       const start = m.index;
@@ -197,24 +261,33 @@
         continue;
       }
       if (!shouldAnnotate(info, w)) continue;
-      const wordText = raw.replace(/['’]s$/i, '');
-      frag ??= document.createDocumentFragment();
-      if (start > last) frag.append(text.slice(last, start));
-      frag.append(makeSpan(wordText, info, block));
-      last = start + wordText.length;
+      hits.push({ start, text: raw.replace(/['’]s$/i, ''), info });
     }
-    if (!frag) return;
+    if (zhOn() && isZhText(text)) {
+      hits.push(...zhHits(text));
+      hits.sort((a, b) => a.start - b.start);
+    }
+    if (!hits.length) return;
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    for (const h of hits) {
+      if (h.start > last) frag.append(text.slice(last, h.start));
+      frag.append(makeSpan(h.text, h.info, block));
+      last = h.start + h.text.length;
+    }
     if (last < text.length) frag.append(text.slice(last));
     node.replaceWith(frag);
   }
 
+  const wanted = (t) => /[A-Za-z]{3}/.test(t) || (zhOn() && isZhText(t));
+
   function collectTextNodes(root) {
-    if (root.nodeType === 3) return /[A-Za-z]{3}/.test(root.data) ? [root] : [];
+    if (root.nodeType === 3) return wanted(root.data) ? [root] : [];
     const out = [];
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
         if (node.nodeType === 1) return skipElement(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP;
-        return /[A-Za-z]{3}/.test(node.data) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+        return wanted(node.data) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
       },
     });
     while (walker.nextNode()) out.push(walker.currentNode);
@@ -242,6 +315,19 @@
       const res = await send('lookup', { words: batch });
       for (const w of batch) cache.set(w, res[w] || null);
     }
+    const needZh = new Set();
+    if (zhOn()) {
+      for (const n of nodes) {
+        if (!isZhText(n.data)) continue;
+        for (const t of zhTerms(n.data)) if (!zhCache.has(t)) needZh.add(t);
+      }
+    }
+    const terms = [...needZh];
+    for (let i = 0; i < terms.length; i += 5000) {
+      const batch = terms.slice(i, i + 5000);
+      const res = await send('lookupZh', { terms: batch });
+      for (const t of batch) zhCache.set(t, res[t] || null);
+    }
     const t1 = performance.now();
 
     for (let i = 0; i < nodes.length; i += 200) {
@@ -250,7 +336,7 @@
       await idle();
     }
     console.debug(
-      `[夹注] ${nodes.length} 个文本节点，查词 ${words.length} 个 ${Math.round(t1 - t0)}ms，标注 ${Math.round(performance.now() - t1)}ms`,
+      `[夹注] ${nodes.length} 个文本节点，查词 ${words.length} 个、中文 ${terms.length} 个 ${Math.round(t1 - t0)}ms，标注 ${Math.round(performance.now() - t1)}ms`,
     );
   }
 
@@ -371,7 +457,13 @@
         return;
       }
       document.documentElement.classList.remove('ig-off');
-      if (old.level !== settings.level || old.showRare !== settings.showRare || old.firstOnly !== settings.firstOnly) {
+      const zhChanged = old.zh !== settings.zh || String(old.zhLists) !== String(settings.zhLists);
+      if (
+        old.level !== settings.level ||
+        old.showRare !== settings.showRare ||
+        old.firstOnly !== settings.firstOnly ||
+        zhChanged
+      ) {
         reset();
       } else if (settings.ai && settings.aiKey && (!old.ai || !old.aiKey)) {
         // 打开 AI 后重新扫描一遍，收集词典里没有的词
@@ -427,14 +519,67 @@
   async function runAI(block) {
     if (!block.isConnected || !settings.ai || !isActive() || block.closest(REF_SELECTOR)) return false;
     const { text } = ownText(block);
-    if (text.replace(/\s+/g, ' ').trim().length < 60) return false;
-    const words = [
-      ...new Set([...ownSpans(block).map((s) => s.textContent), ...(blockUnknown.get(block) || [])]),
-    ];
-    const res = await send('aiGloss', { text: text.slice(0, 3000), words });
-    if (!res || !block.isConnected) return false;
-    applyAI(block, res);
-    return true;
+    const flat = text.replace(/\s+/g, ' ').trim();
+    let done = false;
+    if (zhOn() && isZhText(flat) && (flat.match(/[一-鿿]/g) || []).length >= 20) {
+      const words = {};
+      for (const s of ownSpans(block)) if (s.dataset.z) words[s.dataset.z] = s.dataset.l;
+      const res = await send('aiZh', { text: flat.slice(0, 1500), words, lists: settings.zhLists });
+      if (!block.isConnected) return false;
+      applyAIZh(block, res);
+      done = true;
+    }
+    if (flat.length >= 60 && (flat.match(/[A-Za-z]+/g) || []).length >= 8) {
+      const words = [
+        ...new Set([
+          ...ownSpans(block)
+            .filter((s) => !s.dataset.z)
+            .map((s) => s.textContent),
+          ...(blockUnknown.get(block) || []),
+        ]),
+      ];
+      const res = await send('aiGloss', { text: text.slice(0, 3000), words });
+      if (!res || !block.isConnected) return done;
+      applyAI(block, res);
+      done = true;
+    }
+    return done;
+  }
+
+  // AI 判断不贴切的去掉，换了词的更新，再补上 AI 找的词
+  function applyAIZh(block, res) {
+    const drop = [];
+    for (const s of ownSpans(block)) {
+      const r = s.dataset.z ? res.words?.[s.dataset.z] : undefined;
+      if (r === undefined) continue;
+      if (!r || known.has(r.en)) {
+        drop.push(s);
+        continue;
+      }
+      s.dataset.l = r.en;
+      s.dataset.g = r.en;
+      s.dataset.t = r.tier;
+      s.classList.add('ig-ai');
+      s.classList.toggle('ig-vocab', !!vocab[r.en]);
+    }
+    unwrap(drop);
+    for (const x of res.extra || []) if (!known.has(x.en)) wrapFirstZh(block, x);
+    observer?.takeRecords();
+  }
+
+  function wrapFirstZh(block, { zh, en, tier }) {
+    if (ownSpans(block).some((s) => s.dataset.z === zh)) return;
+    for (const { node } of ownText(block).parts) {
+      if (node.parentElement.closest('.ig-w')) continue;
+      const i = node.data.indexOf(zh);
+      if (i < 0) continue;
+      const span = makeSpan(zh, { lemma: en, gloss: en, level: '', tier, zh }, block);
+      span.classList.add('ig-ai');
+      const rest = node.splitText(i);
+      rest.data = rest.data.slice(zh.length);
+      rest.before(span);
+      return;
+    }
   }
 
   function applyAI(block, res) {
@@ -540,6 +685,8 @@
     .x { margin-left: auto; border: 0; background: none; font-size: 18px; line-height: 1; cursor: pointer; color: #8c959f; padding: 0 2px; }
     .ph { color: #656d76; font-size: 13px; }
     .ai { margin-top: 6px; padding: 4px 8px; border-radius: 6px; background: #f3f0ff; color: #5f3dc4; }
+    .zh { margin-top: 6px; font-size: 15px; }
+    .zh .note { margin-left: 8px; }
     .tr { margin-top: 6px; white-space: pre-line; font-size: 13px; color: #31363b; }
     .src { color: #656d76; font-size: 13px; white-space: pre-line; }
     .out { margin-top: 8px; white-space: pre-line; font-size: 13px; }
@@ -692,7 +839,7 @@
   }
 
   function wordCardHTML(c) {
-    const lv = c.missing ? '' : LEVEL_TEXT[c.level ?? ''] ?? '';
+    const lv = c.zh ? IG_ZH_LISTS[c.tier] || '' : c.missing ? '' : LEVEL_TEXT[c.level ?? ''] ?? '';
     const surface = c.surface && c.surface.toLowerCase() !== c.lemma ? ` <span class="muted">(${escapeHTML(c.surface)})</span>` : '';
     return `
       <div class="head">
@@ -701,6 +848,7 @@
         <button class="x" data-act="close" title="关闭">×</button>
       </div>
       ${c.phonetic ? `<div class="ph">/${escapeHTML(c.phonetic)}/</div>` : ''}
+      ${c.zh ? `<div class="zh">${escapeHTML(c.zh)}${c.aiPicked ? '<span class="note">AI 按上下文选的词</span>' : ''}</div>` : ''}
       ${c.ai ? `<div class="ai">语境：${escapeHTML(c.ai)}</div>` : ''}
       <div class="tr">${c.translation ? escapeHTML(c.translation) : c.gloss ? escapeHTML(c.gloss) : '<span class="muted">词典里没有这个词</span>'}</div>
       <div class="acts">
@@ -720,6 +868,13 @@
       : c.error
         ? `<span class="err">${escapeHTML(c.error)}</span>`
         : '<span class="muted">翻译中…</span>';
+    // 划选的中文：列出词表里对应的英文，点开看详情
+    const cands = (c.cands || [])
+      .map(
+        ([w, t]) =>
+          `<button data-act="open" data-w="${escapeHTML(w)}" data-t="${t}">${escapeHTML(w)} <span class="muted">${IG_ZH_LISTS[t]}</span></button>`,
+      )
+      .join('');
     return `
       <div class="head">
         ${c.short ? `<span class="word">${escapeHTML(c.text)}</span>` : '<span class="muted">翻译</span>'}
@@ -727,7 +882,8 @@
       </div>
       ${c.short ? '' : `<div class="src">${escapeHTML(src)}</div>`}
       <div class="tr">${result}</div>
-      ${c.short ? `<div class="acts"><button data-act="explain">AI 讲解</button>${vocabButton(c)}</div>` : ''}
+      ${cands ? `<div class="note">词表里对应的英文</div><div class="acts">${cands}</div>` : ''}
+      ${c.short && !c.zh ? `<div class="acts"><button data-act="explain">AI 讲解</button>${vocabButton(c)}</div>` : ''}
       <div class="out">${c.out || ''}</div>`;
   }
 
@@ -756,6 +912,15 @@
   }
 
   function openSpanCard(span) {
+    const zh = span.dataset.z;
+    const sentence = sentenceAt(span.firstChild || span);
+    const rectFn = () => span.getBoundingClientRect();
+    if (zh) {
+      // 中文词：卡片显示对应的英文单词
+      const picked = { tier: Number(span.dataset.t), aiPicked: span.classList.contains('ig-ai') };
+      openWordCard({ lemma: span.dataset.l, zh, level: '', gloss: zh, sentence, ...picked }, rectFn);
+      return;
+    }
     openWordCard(
       {
         lemma: span.dataset.l,
@@ -763,9 +928,9 @@
         level: span.dataset.lv === '' ? '' : Number(span.dataset.lv),
         gloss: span.dataset.d || span.dataset.g,
         ai: span.dataset.ai,
-        sentence: sentenceAt(span.firstChild || span),
+        sentence,
       },
-      () => span.getBoundingClientRect(),
+      rectFn,
     );
   }
 
@@ -784,18 +949,31 @@
 
   async function openTextCard(text, range, where) {
     const flat = text.replace(/\s+/g, ' ');
+    const zh = igMostlyChinese(flat);
     const c = {
       type: 'text',
       text: flat,
-      short: flat.split(' ').length <= 8 && flat.length <= 80,
+      zh,
+      short: zh ? flat.length <= 12 : flat.split(' ').length <= 8 && flat.length <= 80,
       sentence: sentenceAt(range.startContainer, range.startOffset),
     };
-    if (c.short) {
+    if (c.short && !zh) {
       c.lemma = flat.toLowerCase();
       c.surface = flat;
     }
     current = c;
     showCard(textCardHTML(c), stableRect(() => range.getBoundingClientRect()), where);
+    if (c.short && zh && segmenter) {
+      // 选中的词本身，以及其中切出来的词，在词表里对应的英文（所有词表都列出来）
+      const terms = [...new Set([flat.replace(/[^一-鿿]/g, ''), ...zhTerms(flat)])];
+      send('lookupZh', { terms })
+        .then((res) => {
+          const seen = new Set();
+          c.cands = terms.flatMap((t) => res[t] || []).filter(([w]) => !seen.has(w) && seen.add(w)).slice(0, 6);
+          if (current === c && c.cands.length) renderCurrent();
+        })
+        .catch(() => {});
+    }
     try {
       const r = await send('translate', { text: flat });
       Object.assign(c, { translation: r.text, engine: r.engine });
@@ -806,11 +984,11 @@
   }
 
   function onCardClick(e) {
-    const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act) runAction(act);
+    const el = e.target.closest('[data-act]');
+    if (el) runAction(el.dataset.act, el.dataset);
   }
 
-  async function runAction(act) {
+  async function runAction(act, data = {}) {
     const c = current;
     if (!c) return;
     const setOut = (html) => {
@@ -827,7 +1005,7 @@
         if (vocab[c.lemma]) await igSetVocab(c.lemma, null);
         else {
           await igSetVocab(c.lemma, {
-            form: c.surface,
+            form: c.surface || c.lemma,
             gloss: c.ai || c.gloss || c.translation || '',
             sentence: c.sentence,
             url: location.href,
@@ -838,8 +1016,11 @@
         renderCurrent();
       } else if (act === 'explain') {
         setOut('<span class="muted">AI 讲解中…</span>');
-        const text = await send('aiExplain', { word: c.surface || c.lemma, sentence: c.sentence });
+        const text = await send('aiExplain', { word: c.surface || c.lemma, sentence: c.sentence, zh: c.zh });
         setOut(escapeHTML(text));
+      } else if (act === 'open') {
+        const word = { lemma: data.w, zh: c.text, tier: Number(data.t), level: '', gloss: c.text, sentence: c.sentence };
+        openWordCard(word, anchorRect, placement);
       } else if (act === 'sentence') {
         if (!c.sentence) return setOut('<span class="muted">没有找到所在句子</span>');
         setOut(`<span class="muted">${escapeHTML(c.sentence)}\n翻译中…</span>`);
@@ -888,7 +1069,8 @@
       const sel = getSelection();
       const text = sel.toString().trim();
       const editable = e.target.closest?.('input, textarea, [contenteditable=""], [contenteditable="true"]');
-      if (!sel.rangeCount || sel.isCollapsed || !/[A-Za-z]/.test(text) || text.length > 4000 || editable) {
+      const lang = /[A-Za-z]/.test(text) || (settings.zh && HAN_RE.test(text));
+      if (!sel.rangeCount || sel.isCollapsed || !lang || text.length > 4000 || editable) {
         dot.hidden = true;
         return;
       }
@@ -906,8 +1088,11 @@
     const { text, range } = dot._sel;
     dot.hidden = true;
     const word = text.replace(/^[^A-Za-z]+|[^A-Za-z]+$/g, '');
-    if (/^[A-Za-z]+(?:['’][A-Za-z]+)?$/.test(word)) openLookupCard(word.replace(/['’]s$/i, ''), range, 'right');
-    else openTextCard(text, range, 'right');
+    if (!igMostlyChinese(text) && /^[A-Za-z]+(?:['’][A-Za-z]+)?$/.test(word)) {
+      openLookupCard(word.replace(/['’]s$/i, ''), range, 'right');
+    } else {
+      openTextCard(text, range, 'right');
+    }
   }
 
   function onMessage(msg, sender, sendResponse) {

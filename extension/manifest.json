@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "夹注 - 英文网页生词释义",
+  "version": "0.1.0",
+  "description": "在英文网页的生词后面直接显示中文释义，读英文原文的同时学单词。",
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png"
+    }
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["storage"],
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["common.js", "content/content.js"],
+      "css": ["content/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "toggle-gloss": {
+      "suggested_key": { "default": "Alt+W" },
+      "description": "显示/隐藏中文释义"
+    }
+  }
+}

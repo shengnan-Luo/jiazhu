@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>夹注 设置</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <header>
+      <img src="../icons/48.png" alt="" width="32" height="32">
+      <div>
+        <h1>夹注</h1>
+        <p class="muted">在英文网页的生词后面直接显示中文释义</p>
+      </div>
+      <span id="saved" class="saved" hidden>已保存</span>
+    </header>
+
+    <section>
+      <h2>标注</h2>
+      <div class="field">
+        <label for="level">标注哪些词</label>
+        <select id="level">
+          <option value="2">四级及以上</option>
+          <option value="3">六级及以上</option>
+          <option value="4">考研/雅思/托福及以上</option>
+          <option value="5">只标 GRE 和低频词</option>
+        </select>
+        <p class="hint">按单词所在的最低一级考试词表分档；不在任何词表里的词按使用频率分档。觉得标多了就往下调，标少了就往上调，个别词在网页上点一下改。</p>
+      </div>
+      <label class="check"><input type="checkbox" id="showRare"> 标注专业/罕见词（词典里收录、但不在常用词表中的词，如 perovskite → 钙钛矿）</label>
+      <label class="check"><input type="checkbox" id="firstOnly"> 同一段里重复出现的词，只在第一次显示释义，之后画虚线、鼠标悬停显示</label>
+      <div class="field inline">
+        <label>释义颜色</label>
+        <span>浅色网页 <input type="color" id="color"></span>
+        <span>深色网页 <input type="color" id="colorDark"></span>
+        <label for="size">字号</label>
+        <input type="range" id="size" min="55" max="100" step="1">
+        <span id="sizeVal" class="muted"></span>
+      </div>
+      <p class="preview">These results <span class="ig-demo ai" data-g="证实">corroborate</span> our <span class="ig-demo" data-g="假设">hypothesis</span> and give rise to<span class="ig-demo-p" data-g="导致"></span> a new model of the <span class="ig-demo vocab" data-g="衬底">substrate</span>.</p>
+      <p class="hint">青色：词典释义　紫色：AI 按上下文改过的释义和短语　橙色：生词本里的词</p>
+    </section>
+
+    <section>
+      <h2>AI 语境释义</h2>
+      <p class="hint">开启后，正在看的段落会发给大模型，按上下文给出更准确的释义（如 yield 在化学论文里是“产率”），并标出短语和固定搭配。支持任何兼容 OpenAI 接口的服务。</p>
+      <label class="check"><input type="checkbox" id="ai"> 开启 AI 语境释义</label>
+      <div class="field">
+        <label for="aiBase">接口地址（Base URL）</label>
+        <input id="aiBase" list="aiBases" placeholder="https://api.deepseek.com/v1">
+        <datalist id="aiBases">
+          <option value="https://api.deepseek.com/v1">DeepSeek</option>
+          <option value="https://api.siliconflow.cn/v1">硅基流动</option>
+          <option value="https://dashscope.aliyuncs.com/compatible-mode/v1">阿里云百炼</option>
+          <option value="https://api.moonshot.cn/v1">Moonshot</option>
+          <option value="https://api.openai.com/v1">OpenAI</option>
+        </datalist>
+      </div>
+      <div class="field">
+        <label for="aiKey">API Key</label>
+        <input id="aiKey" type="password" autocomplete="off" placeholder="sk-...">
+        <p class="hint">只保存在本机浏览器里，只会发送给上面填写的接口地址。</p>
+      </div>
+      <div class="field">
+        <label for="aiModel">模型名</label>
+        <input id="aiModel" placeholder="deepseek-chat">
+        <p class="hint">以服务商文档为准，选便宜、快的对话模型即可。</p>
+      </div>
+      <button id="testAI">测试连接</button> <span id="testAIResult" class="result"></span>
+    </section>
+
+    <section>
+      <h2>DeepLX 翻译</h2>
+      <p class="hint">用于“翻译整句”、划选翻译，以及查词典里没有的词。没填或调用失败时会改用 AI 翻译。</p>
+      <div class="field">
+        <label for="deeplxUrl">接口地址</label>
+        <input id="deeplxUrl" placeholder="https://api.deeplx.org/你的key/translate">
+        <p class="hint">公共服务 api.deeplx.org 需要在地址里带上个人 key（通过 linux.do 账号获取，见 <a href="https://linux.do/t/topic/111737" target="_blank" rel="noreferrer">说明帖</a>）。自己部署的 DeepLX 填 <code>http://localhost:1188/translate</code> 之类的地址即可。</p>
+      </div>
+      <div class="field">
+        <label for="deeplxToken">Token（可选）</label>
+        <input id="deeplxToken" type="password" autocomplete="off" placeholder="自建服务设置了 -token 时填写">
+      </div>
+      <button id="testDeepLX">测试翻译</button> <span id="testDeepLXResult" class="result"></span>
+    </section>
+
+    <section>
+      <h2>生词本 <span id="vocabCount" class="count"></span></h2>
+      <p class="hint">在网页上点生词，选“加入生词本”。生词本里的词在任何网页都会标注（橙色）。</p>
+      <div class="toolbar">
+        <input id="vocabSearch" placeholder="搜索">
+        <button id="exportAnki">导出 CSV（可导入 Anki）</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>单词</th><th>释义</th><th>原句</th><th>日期</th><th></th></tr></thead>
+          <tbody id="vocabBody"></tbody>
+        </table>
+      </div>
+      <p id="vocabEmpty" class="muted" hidden>还没有生词。</p>
+    </section>
+
+    <section>
+      <h2>已认识的词 <span id="knownCount" class="count"></span></h2>
+      <p class="hint">在网页上点“认识了”的词不会再标注。点击下面的词可以撤销。</p>
+      <div class="toolbar">
+        <input id="knownSearch" placeholder="搜索">
+      </div>
+      <div id="knownList" class="chips"></div>
+      <details>
+        <summary>批量添加</summary>
+        <textarea id="knownImport" rows="4" placeholder="粘贴单词，空格、逗号或换行分隔（用原形，如 investigate 而不是 investigated）"></textarea>
+        <button id="knownImportBtn">添加为已认识</button>
+      </details>
+    </section>
+
+    <section>
+      <h2>停用的网站</h2>
+      <div id="sites" class="chips"></div>
+      <p id="sitesEmpty" class="muted">没有。可在工具栏弹窗里关闭某个网站。</p>
+    </section>
+
+    <section>
+      <h2>备份</h2>
+      <p class="hint">导出设置、生词本和已认识的词，换电脑或重装插件后可以导入。API Key 不会导出。</p>
+      <button id="backup">导出备份</button>
+      <label class="button">导入备份<input type="file" id="restore" accept="application/json" hidden></label>
+      <span id="backupResult" class="result"></span>
+    </section>
+
+    <footer class="muted">
+      快捷键 <kbd id="shortcut">Alt+W</kbd> 显示/隐藏释义，可在 <a href="#" id="shortcuts">浏览器快捷键设置</a> 里修改。
+      词典数据来自 <a href="https://github.com/skywind3000/ECDICT" target="_blank" rel="noreferrer">ECDICT</a>（MIT 许可）。
+    </footer>
+  </main>
+  <script src="../common.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

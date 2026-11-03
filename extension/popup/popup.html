@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="../icons/32.png" alt="" width="20" height="20">
+    <strong>夹注</strong>
+    <span class="host" id="host"></span>
+  </header>
+
+  <label class="row">
+    <span>在本站启用</span>
+    <input type="checkbox" id="site" class="switch">
+  </label>
+  <label class="row">
+    <span>全局启用</span>
+    <input type="checkbox" id="enabled" class="switch">
+  </label>
+
+  <div class="row col">
+    <span>标注哪些词</span>
+    <select id="level">
+      <option value="2">四级及以上</option>
+      <option value="3">六级及以上</option>
+      <option value="4">考研/雅思/托福及以上</option>
+      <option value="5">只标 GRE 和低频词</option>
+    </select>
+  </div>
+
+  <label class="row">
+    <span>标注专业/罕见词</span>
+    <input type="checkbox" id="showRare" class="switch">
+  </label>
+  <label class="row">
+    <span>同一段只在首次出现时显示</span>
+    <input type="checkbox" id="firstOnly" class="switch">
+  </label>
+  <label class="row">
+    <span>AI 语境释义 <small id="aiHint"></small></span>
+    <input type="checkbox" id="ai" class="switch">
+  </label>
+  <div id="aiStatus" class="status" hidden></div>
+
+  <div class="legend">
+    <span><i class="c-dict"></i>词典释义</span>
+    <span><i class="c-ai"></i>AI 语境释义/短语</span>
+    <span><i class="c-vocab"></i>生词本</span>
+  </div>
+  <p class="tip">选中任意单词或短语，点右上角的小圆点查释义</p>
+
+  <button id="toggle" class="wide">显示/隐藏本页释义 <kbd id="shortcut">Alt+W</kbd></button>
+
+  <footer>
+    <span id="stats"></span>
+    <a href="#" id="options">设置与生词本</a>
+  </footer>
+  <script src="../common.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

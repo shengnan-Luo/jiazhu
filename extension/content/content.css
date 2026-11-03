@@ -1,0 +1,102 @@
+/* 生词后面的中文释义。用 ::after 显示，复制英文和页内搜索时不会带上中文 */
+
+.ig-w {
+  cursor: pointer;
+}
+
+.ig-w::after,
+.ig-p::after {
+  display: inline-block;
+  margin: 0 0 0 0.12em;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: system-ui, -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
+  font-size: var(--ig-size, 72%);
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-indent: 0;
+  text-transform: none;
+  text-shadow: none;
+  text-decoration: none;
+  white-space: nowrap;
+  vertical-align: baseline;
+  color: var(--ig-color, #0f7b6c);
+}
+
+.ig-w::after {
+  content: attr(data-g);
+}
+
+html[data-ig-dark] .ig-w::after {
+  color: var(--ig-color-dark, #5eead4);
+}
+
+/* AI 按上下文改过的释义：紫色 */
+.ig-w.ig-ai::after {
+  color: #7048e8;
+}
+html[data-ig-dark] .ig-w.ig-ai::after {
+  color: #b197fc;
+}
+
+/* 生词本里的词：橙色 */
+.ig-w.ig-vocab::after {
+  color: #c2410c;
+  font-weight: 600;
+}
+html[data-ig-dark] .ig-w.ig-vocab::after {
+  color: #fdba74;
+}
+
+/* 同一段里重复出现的词：只画虚线，鼠标悬停时显示释义 */
+.ig-w.ig-rep {
+  position: relative;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--ig-color, #0f7b6c);
+  text-underline-offset: 0.2em;
+}
+.ig-w.ig-rep::after {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  z-index: 2147483646;
+  margin: 0 0 2px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #1f2937;
+  color: #fff !important;
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.ig-w.ig-rep:hover::after {
+  display: inline-block;
+}
+
+/* AI 找出的短语，释义放在短语末尾 */
+.ig-p {
+  cursor: pointer;
+}
+.ig-p::after {
+  content: "〔" attr(data-g) "〕";
+  margin-left: 0;
+  color: #7048e8;
+}
+html[data-ig-dark] .ig-p::after {
+  color: #b197fc;
+}
+
+/* 快捷键隐藏 */
+html.ig-off .ig-w::after,
+html.ig-off .ig-p::after {
+  display: none !important;
+}
+html.ig-off .ig-w {
+  cursor: auto;
+  text-decoration: none;
+}
